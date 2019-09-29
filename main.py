@@ -1,5 +1,5 @@
 import cv2
-from PIL import Image
+import numpy as np
 
 import torch
 import torchvision
@@ -8,50 +8,35 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-)
+from models import vgg
+from models.net import Net
+
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+bsize = 32
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                        download=False, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=4,
+                                        download=True, transform=transform)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=bsize,
                                           shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                       download=False, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=4,
+                                       download=True, transform=transform)
+testloader = torch.utils.data.DataLoader(testset, batch_size=bsize,
                                          shuffle=False, num_workers=2)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-modelpath = './net.pth'
-
-
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.fc = nn.Linear(16*5*5, 10)
-        self.feature = None
-
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        print(x.shape)
-        x = self.pool(F.relu(self.conv2(x)))
-        print(x.shape)
-        self.feature = x
-        x = x.view(-1, 16*5*5)
-        x = F.relu(self.fc(x))
-
-        return x
+modelpath = './checkpoints/normal_vgg.pth'
 
 
 def train(net):
-    criterion = nn.CrossEntropyLoss()
+
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    criterion = nn.CrossEntropyLoss()
 
     for epoch in range(2):
         runnnig_loss = 0.0
@@ -96,34 +81,81 @@ def test(net):
         ))
 
 
-def grad_cam(net, filepath):
+def cam(net):
 
-    img_np = Image.open(filepath)
-    img_size = (32, 32)
+    transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+        ])
 
-    transform = transforms.Compose([
-        transforms.Resize(img_size),
-        transforms.ToTensor(),
-    ])
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                           download=False, transform=transform)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=4,
+                                             shuffle=False, num_workers=2)
 
-    img = transform(img_np)
-    img = img.view(1, 3, img_size[0], img_size[1])
+    with torch.no_grad():
+        for data in testloader:
+            images = data[0].to(device)
+            bsize = images.size()[0]
+            image_size = images.size()[2:]
 
-    print(img.shape)
+            outputs = net(images)
+            _, predicted = torch.max(outputs.data, 1)
 
-    checkpoint = torch.load(modelpath)
-    net.load_state_dict(checkpoint['model'])
+            weights = net.fc.weight.data
 
-    outputs = net(img)
+            feature_map = net.feature_map
+            nchannel = feature_map.size()[1]
+
+            target_weights = weights[predicted[0], :].view(1, -1)
+
+            for i in range(1, bsize):
+                tmp = weights[predicted[i]].view(1, -1)
+                target_weights = torch.cat([target_weights, tmp], 0)
+
+            masks = torch.empty_like(feature_map)
+            for b in range(bsize):
+                for c in range(nchannel):
+                    masks[b, c, :, :] = target_weights[b, c] * \
+                        feature_map[b, c, :, :]
+
+            masks = torch.sum(masks, 1)
+            masks = F.adaptive_avg_pool2d(masks, image_size)
+
+            for i in range(bsize):
+                image = images[i].data.cpu().numpy()
+                mask = masks[i].data.cpu().numpy()
+
+                mask = mask - np.min(mask)
+                if np.max(mask) != 0:
+                    mask = mask / np.max(mask)
+
+                mask = np.float32(cv2.applyColorMap(
+                    np.uint8(255*mask), cv2.COLORMAP_JET))
+                cam = mask + \
+                    np.float32((np.uint8(image.transpose((1, 2, 0))*255)))
+
+                cam = cam - np.min(cam)
+                if np.max(cam) != 0:
+                    cam = cam / np.max(cam)
+
+                cam = np.uint8(255 * cam)
+                cv2.imwrite(str(i)+'.jpg', cam)
+
+            exit()
 
 
 if __name__ == '__main__':
-    net = Net()
+    transform = transforms.Compose(
+        [transforms.Resize((224, 224)),
+         transforms.ToTensor(),
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    net = vgg.modified_vgg16(num_classes=10)
+    # net = Net()
     net.to(device)
 
-    # net = train(net)
+    net = train(net)
+    test(net)
 
-    # test(net)
-
-    filepath = './cat.jpeg'
-    grad_cam(net, filepath)
+    # cam(net)
