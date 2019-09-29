@@ -12,19 +12,19 @@ from models import vgg
 from models.net import Net
 
 transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize((128, 128)),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-bsize = 32
+bsize = 64
 
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                        download=True, transform=transform)
+trainset = torchvision.datasets.CIFAR100(root='./data', train=True,
+                                         download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=bsize,
                                           shuffle=True, num_workers=2)
 
-testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                       download=True, transform=transform)
+testset = torchvision.datasets.CIFAR100(root='./data', train=False,
+                                        download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(testset, batch_size=bsize,
                                          shuffle=False, num_workers=2)
 
@@ -52,9 +52,9 @@ def train(net):
             optimizer.step()
 
             runnnig_loss += loss.item()
-            if i % 2000 == 1999:
+            if i % 100 == 99:
                 print('[%d, %5d], loss: %.3f' %
-                      (epoch+1, i+1, runnnig_loss/2000))
+                      (epoch+1, i+1, runnnig_loss/100))
                 runnnig_loss = 0.0
 
     print('Finished Training')
@@ -151,8 +151,8 @@ if __name__ == '__main__':
          transforms.ToTensor(),
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    net = vgg.modified_vgg16(num_classes=10)
-    # net = Net()
+    net = vgg.modified_vgg16(num_classes=100)
+    # net = Net(num_classes=100)
     net.to(device)
 
     net = train(net)
