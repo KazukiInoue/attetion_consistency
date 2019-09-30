@@ -2,3 +2,5 @@
 /.vscode
 /.DS_Store
 /checkpoints
+/logs
+/models/__pycache__

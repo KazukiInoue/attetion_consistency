@@ -7,58 +7,104 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from tensorboardX import SummaryWriter
 
 from models import vgg
 from models.net import Net
 
+image_size = (224, 224)
+
 transform = transforms.Compose([
-    transforms.Resize((128, 128)),
+    transforms.Resize(image_size),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-bsize = 64
+bsize = 4
 
-trainset = torchvision.datasets.CIFAR100(root='./data', train=True,
-                                         download=True, transform=transform)
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
+                                        download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=bsize,
                                           shuffle=True, num_workers=2)
 
-testset = torchvision.datasets.CIFAR100(root='./data', train=False,
-                                        download=True, transform=transform)
+testset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                       download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(testset, batch_size=bsize,
                                          shuffle=False, num_workers=2)
 
+logger = SummaryWriter('./logs')
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-modelpath = './checkpoints/normal_vgg.pth'
+training_type = 'att_consist'
+
+if training_type == 'hflip':
+    modelpath = './checkpoints/normal_net_hflip.pth'
+elif training_type == 'att_consist':
+    modelpath = './checkpoints/normal_net_att_const.pth'
+else:
+    assert True, '{} cannot be used!'.foramt(training_type)
 
 
 def train(net):
 
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    criterion = nn.CrossEntropyLoss()
+    cls_criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(10):
+    for epoch in range(2):
         runnnig_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
+        for step, data in enumerate(trainloader, 0):
             inputs = data[0].to(device)
             labels = data[1].to(device)
 
             optimizer.zero_grad()
-
             outputs = net(inputs)
-            loss = criterion(outputs, labels)
+
+            inputs_hflip = inputs.clone()
+            inputs_hflip = inputs_hflip[:, :, :,
+                                        torch.arange(inputs.size()[3]-1, -1, -1)]
+
+            outputs_hflip = net(inputs_hflip)
+            _, predicted = torch.max(outputs.data, 1)
+            _, preditcted_hflip = torch.max(outputs_hflip.data, 1)
+
+            cls_loss = cls_criterion(outputs, labels)
+            cls_hflip_loss = cls_criterion(outputs_hflip, labels)
+
+            loss = cls_loss + cls_hflip_loss
+
+            info = {
+                'cls_loss': cls_loss,
+                'cls_hflip_loss': cls_hflip_loss
+            }
+
+            if training_type == 'att_consist':
+                masks = net.cam(predicted)
+                masks_hflip = net.cam(predicted)
+
+                masks_hflip = masks_hflip[:, :, torch.arange(
+                    masks.size()[2]-1, -1, -1)]
+
+                mask_criterion = nn.MSELoss()
+                mask_loss = mask_criterion(masks, masks_hflip)
+
+                loss = loss + mask_loss
+
+                info['mask_loss'] = mask_loss
+
             loss.backward()
             optimizer.step()
 
             runnnig_loss += loss.item()
-            if i % 100 == 99:
+            if step % 2000 == 1999:
                 print('[%d, %5d], loss: %.3f' %
-                      (epoch+1, i+1, runnnig_loss/100))
+                      (epoch+1, step+1, runnnig_loss/2000))
                 runnnig_loss = 0.0
+            if step % 100 == 99:
+                logger.add_scalars("logs_s_{}/losses".format(training_type),
+                                   info, epoch * (len(trainset)/bsize) + step)
 
     print('Finished Training')
     torch.save({'model': net.state_dict()}, modelpath)
+    logger.close()
     return net
 
 
@@ -151,8 +197,8 @@ if __name__ == '__main__':
          transforms.ToTensor(),
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    net = vgg.modified_vgg16(num_classes=100)
-    # net = Net(num_classes=100)
+    # net = vgg.modified_vgg16(num_classes=100)
+    net = Net(num_classes=10)
     net.to(device)
 
     net = train(net)
