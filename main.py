@@ -10,16 +10,29 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 
 from models import vgg
-from models.net import Net
+from models.net import AttNet, Net
 
 image_size = (224, 224)
+
+bsize = 32
+display_count = 100
+num_epoch = 50
+
+training_type = 'normal'
+# training_type = 'hflip'
+# training_type = 'att_consist'
+
+# net = vgg.modified_vgg16(num_classes=10)
+net = vgg.vgg16(num_classes=10)
+# net = AttNet(num_classes=10)
+# net = Net(num_classes=10)
+
+modelpath = './checkpoints/vgg16_{}.pth'.format(training_type)
 
 transform = transforms.Compose([
     transforms.Resize(image_size),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-bsize = 4
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                         download=True, transform=transform)
@@ -34,22 +47,13 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=bsize,
 logger = SummaryWriter('./logs')
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-training_type = 'att_consist'
-
-if training_type == 'hflip':
-    modelpath = './checkpoints/normal_net_hflip.pth'
-elif training_type == 'att_consist':
-    modelpath = './checkpoints/normal_net_att_const.pth'
-else:
-    assert True, '{} cannot be used!'.foramt(training_type)
-
 
 def train(net):
 
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
     cls_criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(2):
+    for epoch in range(num_epoch):
         runnnig_loss = 0.0
         for step, data in enumerate(trainloader, 0):
             inputs = data[0].to(device)
@@ -58,23 +62,22 @@ def train(net):
             optimizer.zero_grad()
             outputs = net(inputs)
 
-            inputs_hflip = inputs.clone()
-            inputs_hflip = inputs_hflip[:, :, :,
-                                        torch.arange(inputs.size()[3]-1, -1, -1)]
-
-            outputs_hflip = net(inputs_hflip)
             _, predicted = torch.max(outputs.data, 1)
-            _, preditcted_hflip = torch.max(outputs_hflip.data, 1)
-
             cls_loss = cls_criterion(outputs, labels)
-            cls_hflip_loss = cls_criterion(outputs_hflip, labels)
+            loss = cls_loss
+            info = {'cls_loss': cls_loss}
 
-            loss = cls_loss + cls_hflip_loss
+            if training_type == 'hflip' or 'att_consist':
+                inputs_hflip = inputs.clone()
+                inputs_hflip = inputs_hflip[:, :, :,
+                                            torch.arange(inputs.size()[3]-1, -1, -1)]
+                outputs_hflip = net(inputs_hflip)
+                _, preditcted_hflip = torch.max(outputs_hflip.data, 1)
 
-            info = {
-                'cls_loss': cls_loss,
-                'cls_hflip_loss': cls_hflip_loss
-            }
+                cls_hflip_loss = cls_criterion(outputs_hflip, labels)
+                loss += cls_hflip_loss
+
+                info['cls_hflip_loss'] = cls_hflip_loss
 
             if training_type == 'att_consist':
                 masks = net.cam(predicted)
@@ -94,11 +97,11 @@ def train(net):
             optimizer.step()
 
             runnnig_loss += loss.item()
-            if step % 2000 == 1999:
+            if step % display_count == display_count-1:
                 print('[%d, %5d], loss: %.3f' %
-                      (epoch+1, step+1, runnnig_loss/2000))
+                      (epoch+1, step+1, runnnig_loss/display_count))
                 runnnig_loss = 0.0
-            if step % 100 == 99:
+            if step % 100 == 0:
                 logger.add_scalars("logs_s_{}/losses".format(training_type),
                                    info, epoch * (len(trainset)/bsize) + step)
 
@@ -128,6 +131,9 @@ def test(net):
 
 
 def cam(net):
+
+    checkpoint = torch.load(modelpath)
+    net.load_state_dict(checkpoint['model'])
 
     transform = transforms.Compose(
         [
@@ -185,20 +191,16 @@ def cam(net):
                 if np.max(cam) != 0:
                     cam = cam / np.max(cam)
 
+                img_np = np.float32((np.uint8(image.transpose((1, 2, 0))*255)))
                 cam = np.uint8(255 * cam)
                 cv2.imwrite(str(i)+'.jpg', cam)
+                cv2.imwrite(str(i)+'_org.jpg', img_np)
 
             exit()
 
 
 if __name__ == '__main__':
-    transform = transforms.Compose(
-        [transforms.Resize((224, 224)),
-         transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    # net = vgg.modified_vgg16(num_classes=100)
-    net = Net(num_classes=10)
     net.to(device)
 
     net = train(net)
