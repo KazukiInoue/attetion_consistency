@@ -6,6 +6,7 @@ from torch import nn
 
 from models import vgg
 from models.net import AttNet, Net
+from models.net import VggAttNet
 
 
 class ClassificationModel():
@@ -21,6 +22,8 @@ class ClassificationModel():
             self.net = Net(num_classes=opt.n_classes)
         elif opt.net == 'attnet':
             self.net = AttNet(num_classes=opt.n_classes)
+        elif opt.net == 'vgg_attnet':
+            self.net = VggAttNet(num_classes=opt.n_classes)
         else:
             raise ValueError('[%s] cannot be used!' % opt.net)
 
@@ -74,7 +77,28 @@ class ClassificationModel():
         self.optimizer.step()
 
     def cam(self, predicted):
-        pass
+        weights = self.classifier.weight
+
+        feature_map = self.feature_map
+
+        target_weights = weights[predicted[0]].view(1, -1)
+
+        for i in range(1, self.opt.batch_size):
+            tmp = weights[predicted[i]].view(1, -1)
+            target_weights = torch.cat([target_weights, tmp], 0)
+
+        target_weights = target_weights.unsqueeze(0).unsqueeze(1)
+
+        feature_map = feature_map.transpose(0, 2)
+        feature_map = feature_map.transpose(1, 3)
+
+        masks = torch.mul(feature_map, target_weights)
+        masks = masks.transpose(0, 2)
+        masks = masks.transpose(1, 3)
+
+        masks = torch.sum(masks, dim=1)
+
+        return masks
 
     def test(self, data):
         self.images = data[0].to(self.device)
