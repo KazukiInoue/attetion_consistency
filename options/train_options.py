@@ -22,7 +22,7 @@ class TrainOptions(BaseOptions):
 
         parser.add_argument(
             '--batch_size', type=int,
-            default=2, help='batch size')
+            default=32, help='batch size')
         parser.add_argument(
             '--training_type', type=str,
             default='normal',

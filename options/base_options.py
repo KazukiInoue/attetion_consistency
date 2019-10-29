@@ -12,6 +12,13 @@ class BaseOptions():
     def initialize(self, parser):
         parser.add_argument_group('base options')
         parser.add_argument(
+            '--dataset', type=str,
+            default='CIFAR10', help='[CIFAR10 | CIFAR100]')
+        parser.add_argument(
+            '--net', type=str,
+            default='vgg', help='[vgg | normal | attnet]'
+        )
+        parser.add_argument(
             '--img_size', type=int,
             default=128, help='resize image',)
 
@@ -38,14 +45,15 @@ class BaseOptions():
 
         opt = parser.parse_args()
         opt.is_train = self.is_train
-        if opt.dataroot == '../DATASET/soundnet/videos':
-            opt.audio_pairs_txt = '../DATASET/soundnet/videos_audio.txt'
-            opt.img_pairs_txt = '../DATASET/soundnet/videos_frames.txt'
-        else:
-            raise ValueError(
-                'dataroot [%s] not recognized.' % opt.dataroot)
 
         opt.save_dir = os.path.join(opt.checkpoints_dir, opt.name)
+
+        if opt.dataset == 'CIFAR10':
+            opt.n_classes = 10
+        elif opt.dataset == 'CIFAR100':
+            opt.n_classes = 100
+        else:
+            raise ValueError('[%s] cannot be used!' % opt.dataset)
 
         if opt.is_train:
             if not opt.resume_train:
