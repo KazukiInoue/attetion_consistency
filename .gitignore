@@ -1,6 +1,6 @@
-/data
-/.vscode
+/dataset/
+/.vscode/
 /.DS_Store
-/checkpoints
-/logs
+/checkpoints/
+/logs/
 /models/__pycache__
