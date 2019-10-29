@@ -16,7 +16,7 @@ class BaseOptions():
             default='CIFAR10', help='[CIFAR10 | CIFAR100]')
         parser.add_argument(
             '--net', type=str,
-            default='vgg', help='[vgg | normal | attnet]'
+            default='vgg', help='[vgg | normal | att | vgg_att]'
         )
         parser.add_argument(
             '--img_size', type=int,

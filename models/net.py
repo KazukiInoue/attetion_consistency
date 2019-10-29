@@ -53,35 +53,3 @@ class AttNet(nn.Module):
         x = self.classifier(F.relu(x))
 
         return x
-
-    def cam(self, predicted):
-
-        weights = self.classifier.weight
-        print('weights.size()', weights.size())
-
-        feature_map = self.feature_map
-        feature_map = feature_map
-        bsize = feature_map.size()[0]
-
-        target_weights = weights[predicted[0], :].view(1, -1)
-
-        for i in range(1, bsize):
-            tmp = weights[predicted[i]].view(1, -1)
-            target_weights = torch.cat([target_weights, tmp], 0)
-
-        target_weights = target_weights.unsqueeze(0).unsqueeze(1)
-
-        feature_map = feature_map.transpose(0, 2)
-        feature_map = feature_map.transpose(1, 3)
-
-        print(feature_map.size())
-        print(target_weights.size())
-        exit()
-
-        masks = torch.mul(feature_map, target_weights)
-        masks = masks.transpose(0, 2)
-        masks = masks.transpose(1, 3)
-
-        masks = torch.sum(masks, dim=1)
-
-        return masks
