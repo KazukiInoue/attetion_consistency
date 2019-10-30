@@ -1,10 +1,14 @@
 from data.dataloader_dataset import DataloaderDataset
 from models.classification_model import ClassificationModel
-from options.train_options import TestOptions
+from options.test_options import TestOptions
 
 if __name__ == '__main__':
 
     opt = TestOptions().parse()
+
+    print('dataset: ', opt.dataset)
+    print('model: ', opt.save_dir)
+    print('which epoch: ', opt.which_epoch)
 
     dataloader_dataset = DataloaderDataset(opt)
     dataloader = dataloader_dataset.dataloader

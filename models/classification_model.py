@@ -30,7 +30,7 @@ class ClassificationModel():
         self.net = self.net.to(self.device)
 
         if not opt.is_train:
-            self.load_network(self.net, self.opt.which_epoch)
+            self.load_network(self.opt.which_epoch)
         else:
             if self.opt.resume_train:
                 self.load_network(self.opt.which_epoch)
@@ -45,18 +45,19 @@ class ClassificationModel():
         self.outputs = self.net(self.images)
         _, self.predicted = torch.max(self.outputs, 1)
 
-        if self.opt.training_type == 'hflip' or 'att_consist':
-            hflip = self.images.clone()
-            hflip = hflip[:, :, :,
-                          torch.arange(self.images.size()[3]-1, -1, -1)]
-            self.outputs_hflip = self.net(hflip)
-            _, self.predicted_hflip = torch.max(self.outputs_hflip, 1)
+        if self.opt.is_train:
+            if self.opt.training_type == 'hflip' or 'att_consist':
+                hflip = self.images.clone()
+                hflip = hflip[:, :, :, torch.arange(
+                    self.images.size()[3]-1, -1, -1)]
+                self.outputs_hflip = self.net(hflip)
+                _, self.predicted_hflip = torch.max(self.outputs_hflip, 1)
 
-            if self.opt.training_type == 'att_consist':
-                self.masks = self.cam(self.predicted)
-                masks_hflip = self.cam(self.predicted_hflip)
-                self.masks_hflip = masks_hflip[:, :, torch.arange(
-                    self.masks.size()[2]-1, -1, -1)]
+                if self.opt.training_type == 'att_consist':
+                    self.masks = self.cam(self.predicted)
+                    masks_hflip = self.cam(self.predicted_hflip)
+                    self.masks_hflip = masks_hflip[:, :, torch.arange(
+                        self.masks.size()[2]-1, -1, -1)]
 
     def backward(self):
         self.loss = self.cls_criterion(self.outputs, self.labels)
@@ -123,5 +124,5 @@ class ClassificationModel():
         save_path = os.path.join(self.opt.save_dir, save_filename)
         self.net.load_state_dict(torch.load(save_path))
 
-        if not self.opt.is_train:
+        if self.opt.is_train:
             print('%s are loaded' % save_path)

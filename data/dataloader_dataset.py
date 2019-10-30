@@ -14,11 +14,11 @@ class DataloaderDataset():
 
         if opt.dataset == 'CIFAR10':
             self.dataset = torchvision.datasets.CIFAR10(
-                root='./dataset', train=True,
+                root='./dataset', train=opt.is_train,
                 download=True, transform=transform)
         elif opt.dataset == 'CIFAR100':
             self.dataset = torchvision.datasets.CIFAR100(
-                root='./dataset', train=True,
+                root='./dataset', train=opt.is_train,
                 download=True, transform=transform)
         else:
             raise ValueError('[%s] cannot be used!' % opt.dataset)

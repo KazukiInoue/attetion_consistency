@@ -21,6 +21,9 @@ class BaseOptions():
         parser.add_argument(
             '--img_size', type=int,
             default=128, help='resize image',)
+        parser.add_argument(
+            '--batch_size', type=int,
+            default=32, help='batch size')
 
         parser.add_argument(
             '--checkpoints_dir', type=str,
@@ -31,7 +34,7 @@ class BaseOptions():
             default='experiment_name',
             help='name of the experiment.')
         parser.add_argument(
-            '--which_epoch', type=int,
+            '--which_epoch', type=str,
             default=0,
             help='which epoch to load? set to "latest" to use latest model.')
 

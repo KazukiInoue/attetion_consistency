@@ -42,3 +42,7 @@ if __name__ == '__main__':
                   (epoch, total_steps))
             model.save('latest')
             model.save(epoch+1)
+
+    print('saving the last model at the end of epoch %d' % opt.n_epochs)
+    model.save('latest')
+    model.save(opt.n_epochs)
