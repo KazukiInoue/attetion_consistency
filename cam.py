@@ -6,7 +6,7 @@ from torch import nn
 from torchvision import transforms
 
 
-def save_image_numpy(img_np, save_path):
+def save_numpy_image(img_np, save_path):
     img_np = img_np.astype(np.uint8)
 
     img_pil = Image.fromarray(img_np)
@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     cam_np = (img_np + mask_color) / 2.0
 
-    save_image_numpy(img_np, './cat_recon.jpg')
-    save_image_numpy(mask_np, './mask_gray.jpg')
-    save_image_numpy(mask_color, './mask_color.jpg')
-    save_image_numpy(cam_np, './cat_cam.jpg')
+    save_numpy_image(img_np, './cat_recon.jpg')
+    save_numpy_image(mask_np, './mask_gray.jpg')
+    save_numpy_image(mask_color, './mask_color.jpg')
+    save_numpy_image(cam_np, './cat_cam.jpg')
