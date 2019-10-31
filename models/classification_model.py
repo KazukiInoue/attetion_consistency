@@ -48,16 +48,14 @@ class ClassificationModel():
         if self.opt.is_train:
             if self.opt.training_type == 'hflip' or 'att_consist':
                 hflip = self.images.clone()
-                hflip = hflip[:, :, :, torch.arange(
-                    self.images.size()[3]-1, -1, -1)]
                 self.outputs_hflip = self.net(hflip)
                 _, self.predicted_hflip = torch.max(self.outputs_hflip, 1)
 
                 if self.opt.training_type == 'att_consist':
                     self.masks = self.cam(self.predicted)
                     masks_hflip = self.cam(self.predicted_hflip)
-                    self.masks_hflip = masks_hflip[:, :, torch.arange(
-                        self.masks.size()[2]-1, -1, -1)]
+                    masks_hflip = torch.flip(
+                        masks_hflip, [self.masks.size()[3]-1])
 
     def backward(self):
         self.loss = self.cls_criterion(self.outputs, self.labels)
